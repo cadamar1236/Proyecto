@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Transcribir Video de YouTube</h2>
+<form method="POST" action="{{ url_for('transcribe_youtube') }}">
+    {{ form.hidden_tag() }}
+    {{ form.youtube_url.label }} {{ form.youtube_url(size=60) }}
+    {% if form.youtube_url.errors %}
+        <ul class="errors">
+            {% for error in form.youtube_url.errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {{ form.submit() }}
+</form>
+{% endblock %}
+
