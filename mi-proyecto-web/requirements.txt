@@ -3,4 +3,4 @@ flask-wtf
 wtforms
 email-validator
 pytube
-whisper
+transformers

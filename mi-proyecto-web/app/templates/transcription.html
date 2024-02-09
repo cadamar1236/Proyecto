@@ -2,6 +2,8 @@
 
 {% block content %}
 <h2>Transcribir Video de YouTube</h2>
+
+{% if form %}
 <form method="POST" action="{{ url_for('transcribe_youtube') }}">
     {{ form.hidden_tag() }}
     {{ form.youtube_url.label }} {{ form.youtube_url(size=60) }}
@@ -14,5 +16,15 @@
     {% endif %}
     {{ form.submit() }}
 </form>
+{% endif %}
+
+<!-- Sección para mostrar la transcripción -->
+{% if transcription %}
+    <div class="transcription">
+        <h3>Transcripción:</h3>
+        <p>{{ transcription }}</p>
+    </div>
+{% endif %}
 {% endblock %}
+
 

@@ -1,5 +1,5 @@
 # views.py
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
 from .forms import AudioUploadForm, YouTubeForm
 from .util import whisper_util
 import os
@@ -25,18 +25,21 @@ def upload_audio():
 
 @app.route('/transcribe_youtube', methods=['GET', 'POST'])
 def transcribe_youtube():
-    form = YouTubeForm()
+    form = YouTubeForm()  # Asumimos que ya tienes definido YouTubeForm
     if form.validate_on_submit():
         try:
             youtube_url = form.youtube_url.data
             transcription = whisper_util.process_youtube_video(youtube_url)
-            return render_template('transcription.html', transcription=transcription)
+            flash('Transcripción completada con éxito.', 'success')
+            return render_template('transcription.html', form=form, transcription=transcription)
         except FileNotFoundError:
-            Flasklash('Error al procesar el video. Asegúrate de que el enlace sea correcto.', 'error')
+            flash('Error al procesar el video. Asegúrate de que el enlace sea correcto.', 'error')
         except Exception as e:
-            Flash('Ocurrió un error inesperado. Por favor, inténtalo de nuevo.', 'error')
-            # Log the exception e for debugging purposes
-    return render_template('youtube_transcription.html', form=form)
+            flash('Ocurrió un error inesperado. Por favor, inténtalo de nuevo.', 'error')
+            # Considera loguear el error e para propósitos de depuración
+    # Asegúrate de pasar el objeto form incluso si no se valida para mantener el formulario rellenable
+    return render_template('transcription.html', form=form, transcription="Aquí va el texto de la transcripción obtenida")
+
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -17,6 +17,17 @@
         </nav>
     </header>
 
+    <!-- Sección para mostrar mensajes flash -->
+    <section id="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </section>
+
     <main>
         {% block content %}{% endblock %}
     </main>
@@ -24,6 +35,14 @@
     <footer>
         <p>&copy; {{ now.year }} Mi Empresa</p>
     </footer>
+
+    <style>
+        /* Estilos básicos para los mensajes flash */
+        .flash.success { color: green; }
+        .flash.error { color: red; }
+        /* Agrega aquí más estilos según necesites */
+    </style>
 </body>
 </html>
+
 
