@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chatbot con Mistral AI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .chat-container { display: flex; flex-direction: column; margin-bottom: 20px; }
+        .user-message, .bot-response { margin: 5px 0; }
+        .user-message { align-self: flex-end; }
+        .bot-response { align-self: flex-start; }
+        input[type="text"] { width: 300px; padding: 10px; }
+        input[type="submit"] { padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <h2>Chat con Mistral AI</h2>
+    <div id="chat-container" class="chat-container"></div>
+    <input type="text" id="user-input" placeholder="Escribe tu pregunta aquí...">
+    <input type="submit" value="Enviar" onclick="sendMessage()">
+
+    <script>
+        function sendMessage() {
+        var userInput = document.getElementById('user-input').value;
+        var chatContainer = document.getElementById('chat-container');
+        var userMessageDiv = document.createElement('div');
+        userMessageDiv.textContent = "Tú: " + userInput;
+        userMessageDiv.className = 'user-message';
+        chatContainer.appendChild(userMessageDiv);
+
+        fetch('/chatbot', { // Asegúrate de que esta ruta coincide con tu endpoint Flask
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json', // Especificar que el cuerpo es JSON
+            },
+            body: JSON.stringify({message: userInput}), // Convertir el objeto a cadena JSON
+        })
+        .then(response => response.json())
+        .then(data => {
+            var botResponseDiv = document.createElement('div');
+            botResponseDiv.textContent = "Chatbot: " + data.response; // Asegúrate de que 'data.response' sea el campo correcto
+            botResponseDiv.className = 'bot-response';
+            chatContainer.appendChild(botResponseDiv);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+
+        document.getElementById('user-input').value = ''; // Limpiar el campo de entrada después de enviar
+    }
+</script>

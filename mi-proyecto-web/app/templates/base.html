@@ -5,6 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Mi Página Web{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <!-- Estilos adicionales para el chatbot -->
+    <style>
+        #chatbot-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #chat-messages {
+            height: 200px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+        /* Estilos básicos para los mensajes flash */
+        .flash.success { color: green; }
+        .flash.error { color: red; }
+        /* Estilos para el input y el botón del chatbot */
+        #chat-input {
+            width: calc(100% - 20px);
+            padding: 5px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -36,13 +68,46 @@
         <p>&copy; {{ now.year }} Mi Empresa</p>
     </footer>
 
-    <style>
-        /* Estilos básicos para los mensajes flash */
-        .flash.success { color: green; }
-        .flash.error { color: red; }
-        /* Agrega aquí más estilos según necesites */
-    </style>
+    <!-- Contenedor del Chatbot -->
+    <div id="chatbot-container">
+        <h4>Chatbot Mistral AI</h4>
+        <div id="chat-messages"></div>
+        <input type="text" id="chat-input" placeholder="Escribe tu pregunta aquí...">
+        <button onclick="sendMessage()">Enviar</button>
+    </div>
+
+    <script>
+        function sendMessage() {
+            var input = document.getElementById('chat-input');
+            var messageContainer = document.getElementById('chat-messages');
+            var userMessage = document.createElement('div');
+            userMessage.textContent = "Tú: " + input.value;
+            messageContainer.appendChild(userMessage);
+
+            fetch('/chatbot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({message: input.value}),
+            })
+            .then(response => response.json())
+            .then(data => {
+                var botResponse = document.createElement('div');
+                botResponse.textContent = "Chatbot: " + data.response;
+                messageContainer.appendChild(botResponse);
+                // Auto-scroll
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+
+            input.value = ''; // Limpiar el campo de entrada después de enviar
+        }
+    </script>
 </body>
 </html>
+
 
 

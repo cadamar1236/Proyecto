@@ -1,10 +1,12 @@
-# views.py
-from flask import Flask, render_template, request, redirect, url_for, flash
-from .forms import AudioUploadForm, YouTubeForm
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from .forms import AudioUploadForm, YouTubeForm, PDFUploadForm  # Asegúrate de incluir PDFUploadForm
+from werkzeug.utils import secure_filename  # Importación para manejar nombres de archivo seguros
 from .util import whisper_util
 import os
 from app import app
 from datetime import datetime
+# Asegúrate de importar get_mistral_response correctamente
+from .util.chatbot import get_mistral_response
 
 
 @app.route('/')
@@ -40,6 +42,30 @@ def transcribe_youtube():
     # Asegúrate de pasar el objeto form incluso si no se valida para mantener el formulario rellenable
     return render_template('transcription.html', form=form, transcription="Aquí va el texto de la transcripción obtenida")
 
+@app.route('/upload_pdf', methods=['GET', 'POST'])
+def upload_pdf():
+    form = PDFUploadForm()
+    if form.validate_on_submit():
+        pdf_file = form.pdf.data
+        filename = secure_filename(pdf_file.filename)
+        unique_filename = f"{uuid.uuid4()}_{filename}"
+        pdf_path = os.path.join('path/to/uploaded_pdfs', unique_filename)
+        pdf_file.save(pdf_path)
+        text = extract_text_from_pdf(pdf_path)
+        return redirect(url_for('chat', context=text))
+    return render_template('upload_pdf.html', form=form)
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    # Acceder al JSON enviado en la solicitud
+    data = request.json
+    user_input = data.get('message') # Obtener el mensaje del usuario del JSON
+
+    if user_input:
+        response = get_mistral_response(user_input)
+        return jsonify({'response': response})
+    else:
+        return jsonify({'response': 'No se proporcionó entrada válida.'})
 
 if __name__ == '__main__':
     app.run(debug=True)

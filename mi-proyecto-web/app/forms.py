@@ -12,3 +12,6 @@ class YouTubeForm(FlaskForm):
     youtube_url = StringField('YouTube URL', validators=[DataRequired(), URL()])
     submit = SubmitField('Transcribe YouTube Video')
 
+class PDFUploadForm(FlaskForm):
+    pdf = FileField('Subir PDF', validators=[FileAllowed(['pdf'], 'Solo PDFs')])
+    submit = SubmitField('Procesar')

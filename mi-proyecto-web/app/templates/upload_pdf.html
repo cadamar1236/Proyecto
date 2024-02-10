@@ -1,0 +1,16 @@
+<!-- templates/upload_pdf.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Subir PDF para Análisis</h2>
+<form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+    <div>
+        {{ form.pdf.label }}
+        {{ form.pdf() }}
+    </div>
+    <div>
+        {{ form.submit() }}
+    </div>
+</form>
+{% endblock %}
