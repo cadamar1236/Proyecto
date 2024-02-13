@@ -28,7 +28,7 @@
         userMessageDiv.className = 'user-message';
         chatContainer.appendChild(userMessageDiv);
 
-        fetch('/chatbot', { // Asegúrate de que esta ruta coincide con tu endpoint Flask
+        fetch('/chat', { // Asegúrate de que esta ruta coincide con tu endpoint Flask
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json', // Especificar que el cuerpo es JSON

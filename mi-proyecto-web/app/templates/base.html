@@ -84,7 +84,7 @@
             userMessage.textContent = "Tú: " + input.value;
             messageContainer.appendChild(userMessage);
 
-            fetch('/chatbot', {
+            fetch('/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
