@@ -1,24 +1,21 @@
-from transformers import pipeline
+import requests
+import os
+from dotenv import load_dotenv
 
-def load_mistral_model():
-    # Cargar el modelo de Mistral AI para generación de texto
-    chatbot = pipeline("text-generation", model="mistralai/mistral-7B-instruct-v0.2")
-    return chatbot
+load_dotenv()
 
-chatbot = load_mistral_model()
+def get_mistral_response(prompt):
+    # Recuperar el token de API desde las variables de entorno
+    YOUR_HUGGING_FACE_API_TOKEN = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
+    API_URL = "https://api-inference.huggingface.co/models/mistralai/mistral-7B-instruct-v0.2"
+    headers = {"Authorization": f"Bearer {YOUR_HUGGING_FACE_API_TOKEN}"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_length": 50, "temperature": 0.7},
+        "options": {"use_cache": False},
+    }
 
-def get_mistral_response(prompt, max_length=50, temperature=0.7, num_return_sequences=1):
-    try:
-        # Generar respuesta(s) con control sobre la diversidad y evitando repeticiones
-        responses = chatbot(prompt, max_length=max_length, temperature=temperature,
-                            num_return_sequences=num_return_sequences, clean_up_tokenization_spaces=True,
-                            no_repeat_ngram_size=2)
-        
-        # Si generamos varias respuestas, elegimos la primera como nuestra respuesta.
-        return responses[0]['generated_text']
-    except Exception as e:
-        print(f"Error al generar respuesta: {e}")
-        # Devolver un mensaje de error o fallback
-        return "Lo siento, no puedo responder a eso en este momento."
+    response = requests.post(API_URL, headers=headers, json=payload)
+    result = response.json()
 
-
+    return result[0]['generated_text'] if response.status_code == 200 else "No se pudo generar una respuesta."
