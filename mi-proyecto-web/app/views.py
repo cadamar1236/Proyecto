@@ -76,10 +76,12 @@ def upload_pdf():
 
 @app.route('/chat_interface')
 def chat_interface():
-    # Lista los archivos en el directorio de transcripciones
-    transcriptions = os.listdir('transcriptions')
-    # Renderiza una plantilla pasando los nombres de los archivos de transcripción
-    return render_template('chat.html', transcriptions=transcriptions)
+    # Asume que tu directorio 'transcriptions' está en el mismo nivel que 'app'
+    transcriptions_dir = os.path.join(app.root_path, 'transcriptions')
+    transcription_files = [f for f in os.listdir(transcriptions_dir) if os.path.isfile(os.path.join(transcriptions_dir, f))]
+
+    # Renderiza 'chat.html', pasando los nombres de los archivos de transcripción
+    return render_template('chat.html', transcription_files=transcription_files)
 
 # Asegúrate de reemplazar 'your_huggingface_api_token' con tu token real de la API de Hugging Face
 YOUR_HUGGING_FACE_API_TOKEN = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
@@ -91,9 +93,13 @@ def chat():
     user_input = data.get('message')
     transcription_filename = data.get('transcription_filename')
 
-    transcription_path = os.path.join('transcriptions', transcription_filename)
-    with open(transcription_path, 'r') as file:
-        transcription_text = file.read()
+    # Asegura que la ruta a transcriptions sea correcta
+    transcription_path = os.path.join(app.root_path, 'transcriptions', transcription_filename)
+    try:
+        with open(transcription_path, 'r') as file:
+            transcription_text = file.read()
+    except FileNotFoundError:
+        return jsonify({'error': 'Archivo de transcripción no encontrado'}), 404
 
     payload = {
         "inputs": {
@@ -103,9 +109,11 @@ def chat():
     }
 
     response = requests.post("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1", headers=headers, json=payload)
-    answer = response.json()
-
-    return jsonify({'response': answer['answer']})
+    if response.status_code == 200:
+        answer = response.json()
+        return jsonify({'response': answer['answer']})
+    else:
+        return jsonify({'error': 'Error al procesar la respuesta del modelo'}), response.status_code
 
 if __name__ == '__main__':
     app.run(debug=True)

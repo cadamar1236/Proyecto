@@ -16,9 +16,9 @@
 <body>
     <h2>Chat con Mistral AI</h2>
     <select id="transcription-select">
-        <!-- Las opciones de transcripción se deben cargar aquí -->
-        <option value="transcription1.txt">Transcripción 1</option>
-        <option value="transcription2.txt">Transcripción 2</option>
+        {% for transcription_file in transcription_files %}
+            <option value="{{ transcription_file }}">{{ transcription_file }}</option>
+        {% endfor %}
     </select>
     <div id="chat-container" class="chat-container"></div>
     <input type="text" id="user-input" placeholder="Escribe tu pregunta aquí...">
@@ -41,7 +41,7 @@
                 },
                 body: JSON.stringify({
                     message: userInput,
-                    transcription: transcriptionSelected // Envía la transcripción seleccionada con la pregunta
+                    transcription_filename: transcriptionSelected // Envía la transcripción seleccionada con la pregunta
                 }),
             })
             .then(response => response.json())
@@ -60,3 +60,4 @@
     </script>
 </body>
 </html>
+

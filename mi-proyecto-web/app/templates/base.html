@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Mi Página Web{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <!-- Estilos adicionales para el chatbot -->
     <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
         #chatbot-container {
             position: fixed;
             bottom: 20px;
@@ -25,10 +25,8 @@
             padding: 5px;
             margin-bottom: 10px;
         }
-        /* Estilos básicos para los mensajes flash */
         .flash.success { color: green; }
         .flash.error { color: red; }
-        /* Estilos para el input y el botón del chatbot */
         #chat-input {
             width: calc(100% - 20px);
             padding: 5px;
@@ -36,6 +34,12 @@
             border-radius: 4px;
             border: 1px solid #ccc;
         }
+        .chat-container { display: flex; flex-direction: column; margin-bottom: 20px; }
+        .user-message, .bot-response { margin: 5px 0; }
+        .user-message { align-self: flex-end; }
+        .bot-response { align-self: flex-start; }
+        input[type="text"], select { width: calc(100% - 20px); padding: 10px; margin-bottom: 10px; }
+        button { padding: 10px 20px; }
     </style>
 </head>
 <body>
@@ -49,7 +53,6 @@
         </nav>
     </header>
 
-    <!-- Sección para mostrar mensajes flash -->
     <section id="flash-messages">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -68,9 +71,12 @@
         <p>&copy; {{ now.year }} Mi Empresa</p>
     </footer>
 
-    <!-- Contenedor del Chatbot -->
     <div id="chatbot-container">
         <h4>Chatbot Mistral AI</h4>
+        <select id="transcription-select">
+            <!-- Las opciones de transcripción se deben cargar aquí -->
+            <!-- Esto se reemplazará dinámicamente basado en la implementación del servidor -->
+        </select>
         <div id="chat-messages"></div>
         <input type="text" id="chat-input" placeholder="Escribe tu pregunta aquí...">
         <button onclick="sendMessage()">Enviar</button>
@@ -78,36 +84,43 @@
 
     <script>
         function sendMessage() {
-            var input = document.getElementById('chat-input');
-            var messageContainer = document.getElementById('chat-messages');
-            var userMessage = document.createElement('div');
-            userMessage.textContent = "Tú: " + input.value;
-            messageContainer.appendChild(userMessage);
+            var userInput = document.getElementById('chat-input').value;
+            var transcriptionSelected = document.getElementById('transcription-select').value;
+            var chatContainer = document.getElementById('chat-messages');
+            var userMessageDiv = document.createElement('div');
+            userMessageDiv.textContent = "Tú: " + userInput;
+            userMessageDiv.className = 'user-message';
+            chatContainer.appendChild(userMessageDiv);
 
             fetch('/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({message: input.value}),
+                body: JSON.stringify({
+                    message: userInput,
+                    transcription_filename: transcriptionSelected
+                }),
             })
             .then(response => response.json())
             .then(data => {
-                var botResponse = document.createElement('div');
-                botResponse.textContent = "Chatbot: " + data.response;
-                messageContainer.appendChild(botResponse);
-                // Auto-scroll
-                messageContainer.scrollTop = messageContainer.scrollHeight;
+                var botResponseDiv = document.createElement('div');
+                botResponseDiv.textContent = "Chatbot: " + data.response;
+                botResponseDiv.className = 'bot-response';
+                chatContainer.appendChild(botResponseDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             })
             .catch((error) => {
                 console.error('Error:', error);
             });
 
-            input.value = ''; // Limpiar el campo de entrada después de enviar
+            document.getElementById('chat-input').value = ''; // Limpia el campo de entrada después de enviar
         }
     </script>
 </body>
 </html>
+
+
 
 
 
