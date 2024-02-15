@@ -9,43 +9,54 @@
         .user-message, .bot-response { margin: 5px 0; }
         .user-message { align-self: flex-end; }
         .bot-response { align-self: flex-start; }
-        input[type="text"] { width: 300px; padding: 10px; }
+        input[type="text"], select { width: 300px; padding: 10px; margin-right: 10px; }
         input[type="submit"] { padding: 10px 20px; }
     </style>
 </head>
 <body>
     <h2>Chat con Mistral AI</h2>
+    <select id="transcription-select">
+        <!-- Las opciones de transcripción se deben cargar aquí -->
+        <option value="transcription1.txt">Transcripción 1</option>
+        <option value="transcription2.txt">Transcripción 2</option>
+    </select>
     <div id="chat-container" class="chat-container"></div>
     <input type="text" id="user-input" placeholder="Escribe tu pregunta aquí...">
     <input type="submit" value="Enviar" onclick="sendMessage()">
 
     <script>
         function sendMessage() {
-        var userInput = document.getElementById('user-input').value;
-        var chatContainer = document.getElementById('chat-container');
-        var userMessageDiv = document.createElement('div');
-        userMessageDiv.textContent = "Tú: " + userInput;
-        userMessageDiv.className = 'user-message';
-        chatContainer.appendChild(userMessageDiv);
+            var userInput = document.getElementById('user-input').value;
+            var transcriptionSelected = document.getElementById('transcription-select').value; // Obtiene la transcripción seleccionada
+            var chatContainer = document.getElementById('chat-container');
+            var userMessageDiv = document.createElement('div');
+            userMessageDiv.textContent = "Tú: " + userInput;
+            userMessageDiv.className = 'user-message';
+            chatContainer.appendChild(userMessageDiv);
 
-        fetch('/chat', { // Asegúrate de que esta ruta coincide con tu endpoint Flask
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json', // Especificar que el cuerpo es JSON
-            },
-            body: JSON.stringify({message: userInput}), // Convertir el objeto a cadena JSON
-        })
-        .then(response => response.json())
-        .then(data => {
-            var botResponseDiv = document.createElement('div');
-            botResponseDiv.textContent = "Chatbot: " + data.response; // Asegúrate de que 'data.response' sea el campo correcto
-            botResponseDiv.className = 'bot-response';
-            chatContainer.appendChild(botResponseDiv);
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-        });
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: userInput,
+                    transcription: transcriptionSelected // Envía la transcripción seleccionada con la pregunta
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                var botResponseDiv = document.createElement('div');
+                botResponseDiv.textContent = "Chatbot: " + data.response;
+                botResponseDiv.className = 'bot-response';
+                chatContainer.appendChild(botResponseDiv);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
 
-        document.getElementById('user-input').value = ''; // Limpiar el campo de entrada después de enviar
-    }
-</script>
+            document.getElementById('user-input').value = ''; // Limpia el campo de entrada después de enviar
+        }
+    </script>
+</body>
+</html>

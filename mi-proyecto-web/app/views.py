@@ -4,9 +4,8 @@ from werkzeug.utils import secure_filename  # Importación para manejar nombres 
 from .util import whisper_util
 import os
 from app import app
+from transformers import pipeline
 from datetime import datetime
-# Asegúrate de importar get_mistral_response correctamente
-from .util.chatbot import get_mistral_response
 
 
 @app.route('/')
@@ -18,12 +17,23 @@ def upload_audio():
     form = AudioUploadForm()
     if form.validate_on_submit():
         audio_file = form.audio.data
-        audio_file.save(os.path.join(app.config['UPLOAD_FOLDER'], audio_file.filename))
-        transcription = whisper_util.transcribe_audio(os.path.join(app.config['UPLOAD_FOLDER'], audio_file.filename))
-        return render_template('transcription.html', transcription=transcription)
+        audio_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(audio_file.filename))
+        audio_file.save(audio_file_path)
+        
+        # Transcribir el audio
+        transcription = whisper_util.transcribe_audio(audio_file_path)
+        
+        # Guardar la transcripción en un archivo
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        transcription_filename = f"transcription_{timestamp}.txt"
+        transcription_filepath = os.path.join('transcriptions', transcription_filename)
+        with open(transcription_filepath, 'w') as transcription_file:
+            transcription_file.write(transcription)
+        
+        # Cambiar la respuesta para incluir también el nombre del archivo de transcripción
+        return render_template('transcription.html', transcription=transcription, transcription_filename=transcription_filename)
+    
     return render_template('upload.html', form=form)
-
-
 
 @app.route('/transcribe_youtube', methods=['GET', 'POST'])
 def transcribe_youtube():
@@ -32,15 +42,23 @@ def transcribe_youtube():
         try:
             youtube_url = form.youtube_url.data
             transcription = whisper_util.process_youtube_video(youtube_url)
+
+            # Guardar la transcripción en un archivo HTML
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            transcription_filename = f"transcription_{timestamp}.html"
+            transcription_filepath = os.path.join('transcriptions', transcription_filename)
+            with open(transcription_filepath, 'w') as transcription_file:
+                transcription_file.write(transcription)
+            
             flash('Transcripción completada con éxito.', 'success')
-            return render_template('transcription.html', form=form, transcription=transcription)
+            # Pasar la ruta al archivo de transcripción en lugar de la transcripción directamente
+            return render_template('transcription.html', form=form, transcription_filepath=transcription_filepath)
         except FileNotFoundError:
             flash('Error al procesar el video. Asegúrate de que el enlace sea correcto.', 'error')
         except Exception as e:
-            flash('Ocurrió un error inesperado. Por favor, inténtalo de nuevo.', 'error')
-            # Considera loguear el error e para propósitos de depuración
-    # Asegúrate de pasar el objeto form incluso si no se valida para mantener el formulario rellenable
-    return render_template('transcription.html', form=form, transcription="Aquí va el texto de la transcripción obtenida")
+            flash(f'Ocurrió un error inesperado: {e}', 'error')
+    return render_template('transcription.html', form=form, transcription_filepath=None)
+
 
 @app.route('/upload_pdf', methods=['GET', 'POST'])
 def upload_pdf():
@@ -55,19 +73,39 @@ def upload_pdf():
         return redirect(url_for('chat', context=text))
     return render_template('upload_pdf.html', form=form)
 
+
+@app.route('/chat_interface')
+def chat_interface():
+    # Lista los archivos en el directorio de transcripciones
+    transcriptions = os.listdir('transcriptions')
+    # Renderiza una plantilla pasando los nombres de los archivos de transcripción
+    return render_template('chat.html', transcriptions=transcriptions)
+
+# Asegúrate de reemplazar 'your_huggingface_api_token' con tu token real de la API de Hugging Face
+YOUR_HUGGING_FACE_API_TOKEN = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
+headers = {"Authorization": f"Bearer {YOUR_HUGGING_FACE_API_TOKEN}"}
+
 @app.route('/chat', methods=['POST'])
 def chat():
-    # Acceder al JSON enviado en la solicitud
     data = request.json
-    user_input = data.get('message') # Obtener el mensaje del usuario del JSON
+    user_input = data.get('message')
+    transcription_filename = data.get('transcription_filename')
 
-    if user_input:
-        response = get_mistral_response(user_input)
-        return jsonify({'response': response})
-    else:
-        return jsonify({'response': 'No se proporcionó entrada válida.'})
+    transcription_path = os.path.join('transcriptions', transcription_filename)
+    with open(transcription_path, 'r') as file:
+        transcription_text = file.read()
+
+    payload = {
+        "inputs": {
+            "question": user_input,
+            "context": transcription_text
+        }
+    }
+
+    response = requests.post("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1", headers=headers, json=payload)
+    answer = response.json()
+
+    return jsonify({'response': answer['answer']})
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
