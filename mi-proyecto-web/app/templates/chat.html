@@ -6,9 +6,10 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .chat-container { display: flex; flex-direction: column; margin-bottom: 20px; }
-        .user-message, .bot-response { margin: 5px 0; }
+        .user-message, .bot-response, .error-message { margin: 5px 0; }
         .user-message { align-self: flex-end; }
-        .bot-response { align-self: flex-start; }
+        .bot-response { align-self: flex-start; color: blue; }
+        .error-message { color: red; }
         input[type="text"], select { width: 300px; padding: 10px; margin-right: 10px; }
         input[type="submit"] { padding: 10px 20px; }
     </style>
@@ -27,7 +28,7 @@
     <script>
         function sendMessage() {
             var userInput = document.getElementById('user-input').value;
-            var transcriptionSelected = document.getElementById('transcription-select').value; // Obtiene la transcripción seleccionada
+            var transcriptionSelected = document.getElementById('transcription-select').value;
             var chatContainer = document.getElementById('chat-container');
             var userMessageDiv = document.createElement('div');
             userMessageDiv.textContent = "Tú: " + userInput;
@@ -41,7 +42,7 @@
                 },
                 body: JSON.stringify({
                     message: userInput,
-                    transcription_filename: transcriptionSelected // Envía la transcripción seleccionada con la pregunta
+                    transcription_filename: transcriptionSelected
                 }),
             })
             .then(response => response.json())
@@ -50,9 +51,14 @@
                 botResponseDiv.textContent = "Chatbot: " + data.response;
                 botResponseDiv.className = 'bot-response';
                 chatContainer.appendChild(botResponseDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
             })
             .catch((error) => {
                 console.error('Error:', error);
+                var errorMessageDiv = document.createElement('div');
+                errorMessageDiv.textContent = "Error al comunicarse con el chatbot.";
+                errorMessageDiv.className = 'error-message';
+                chatContainer.appendChild(errorMessageDiv);
             });
 
             document.getElementById('user-input').value = ''; // Limpia el campo de entrada después de enviar
@@ -60,4 +66,5 @@
     </script>
 </body>
 </html>
+
 
