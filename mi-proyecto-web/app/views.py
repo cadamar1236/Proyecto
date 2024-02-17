@@ -6,6 +6,7 @@ import os
 from app import app
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 import torch
+from transformers import pipeline 
 from datetime import datetime
 import requests
 import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
