@@ -87,12 +87,9 @@
         function sendMessage() {
             var userInput = document.getElementById('chat-input').value;
             var transcriptionSelected = document.getElementById('transcription-select').value;
-            var chatContainer = document.getElementById('chat-messages');
-            var userMessageDiv = document.createElement('div');
-            userMessageDiv.textContent = "Tú: " + userInput;
-            userMessageDiv.className = 'user-message';
-            chatContainer.appendChild(userMessageDiv);
-
+            console.log("Enviando mensaje:", userInput); // Para depuración
+            console.log("Transcripción seleccionada:", transcriptionSelected); // Para depuración
+    
             fetch('/chat', {
                 method: 'POST',
                 headers: {
@@ -106,20 +103,28 @@
             .then(response => response.json())
             .then(data => {
                 var botResponseDiv = document.createElement('div');
-                botResponseDiv.textContent = "Chatbot: " + data.response;
-                botResponseDiv.className = 'bot-response';
+                if (data.error) {
+                    botResponseDiv.textContent = "Error: " + data.error;
+                    botResponseDiv.className = 'error-message';
+                } else {
+                    botResponseDiv.textContent = "Chatbot: " + data.response;
+                    botResponseDiv.className = 'bot-response';
+                }
+                var chatContainer = document.getElementById('chat-messages');
                 chatContainer.appendChild(botResponseDiv);
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             })
             .catch((error) => {
                 console.error('Error:', error);
             });
-
+    
             document.getElementById('chat-input').value = ''; // Limpia el campo de entrada después de enviar
         }
     </script>
+    
 </body>
 </html>
+
 
 
 

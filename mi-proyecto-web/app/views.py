@@ -4,10 +4,11 @@ from werkzeug.utils import secure_filename  # Importación para manejar nombres 
 from .util import whisper_util
 import os
 from app import app
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+import torch
 from datetime import datetime
 import requests
-
+import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
 
 @app.route('/')
 def index():
@@ -36,8 +37,6 @@ def upload_audio():
     
     return render_template('upload.html', form=form)
 
-
-
 @app.route('/transcribe_youtube', methods=['GET', 'POST'])
 def transcribe_youtube():
     form = YouTubeForm()
@@ -61,21 +60,18 @@ def transcribe_youtube():
             flash(f'Ocurrió un error inesperado: {e}', 'error')
     return render_template('transcription.html', form=form)
 
-
-
 @app.route('/upload_pdf', methods=['GET', 'POST'])
 def upload_pdf():
     form = PDFUploadForm()
     if form.validate_on_submit():
         pdf_file = form.pdf.data
         filename = secure_filename(pdf_file.filename)
-        unique_filename = f"{uuid.uuid4()}_{filename}"
+        unique_filename = f"{uuid.uuid4()}_{filename}"  # MODIFICADO: Asegúrate de que esta línea se corresponde con tu implementación
         pdf_path = os.path.join('path/to/uploaded_pdfs', unique_filename)
         pdf_file.save(pdf_path)
-        text = extract_text_from_pdf(pdf_path)
+        text = extract_text_from_pdf(pdf_path)  # MODIFICADO: Asegúrate de implementar esta función
         return redirect(url_for('chat', context=text))
     return render_template('upload_pdf.html', form=form)
-
 
 @app.route('/chat_interface', defaults={'transcription_filename': None})
 @app.route('/chat_interface/<transcription_filename>')
@@ -83,7 +79,7 @@ def chat_interface(transcription_filename):
     transcriptions_dir = os.path.join(app.root_path, 'transcriptions')
     transcription_files = [f for f in os.listdir(transcriptions_dir) if os.path.isfile(os.path.join(transcriptions_dir, f))]
     
-    transcription_text = None  # Define el valor predeterminado de transcription_text como None
+    transcription_text = None
     if transcription_filename:
         transcription_path = os.path.join(transcriptions_dir, transcription_filename)
         if os.path.exists(transcription_path):
@@ -93,50 +89,35 @@ def chat_interface(transcription_filename):
             flash('Transcripción no encontrada.', 'error')
     
     return render_template('chat.html', transcription_files=transcription_files, transcription_text=transcription_text)
-# Asegúrate de reemplazar 'your_huggingface_api_token' con tu token real de la API de Hugging Face
-YOUR_HUGGING_FACE_API_TOKEN = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
-headers = {"Authorization": f"Bearer {YOUR_HUGGING_FACE_API_TOKEN}"}
+
+# Configuración del Modelo Llama 2
+MODEL_NAME = "meta-llama/Llama-2-7b-chat-hf"
+pipeline = pipeline("text-generation", model=MODEL_NAME, device=0)  # Asume que estás utilizando una GPU
 
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
-    user_input = data.get('message')
+    question = data.get('message')
     transcription_filename = data.get('transcription_filename')
 
-    transcription_path = os.path.join(app.root_path, 'transcriptions', transcription_filename)
+    if not question or not transcription_filename:
+        return jsonify({'error': 'Falta información de entrada o nombre de archivo de transcripción'}), 400
+
+    transcription_path = os.path.join('transcriptions', transcription_filename)
     try:
         with open(transcription_path, 'r') as file:
-            transcription_text = file.read()
+            context = file.read()
     except FileNotFoundError:
         return jsonify({'error': 'Archivo de transcripción no encontrado'}), 404
 
-    # Formatear la entrada para el modelo de Hugging Face
-    formatted_input = f"<s>[INST] {user_input} [/INST][INST] {transcription_text} [/INST]</s>"
+    # Generar respuesta utilizando el pipeline y el contexto de la transcripción
+    response = pipeline(f"{context}\n\n{question}", max_length=512, clean_up_tokenization_spaces=True)
 
-    payload = {
-        "inputs": formatted_input
-    }
-
-    try:
-        response = requests.post(
-            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1",
-            headers=headers,
-            json=payload
-        )
-        if response.status_code == 200:
-            answer = response.json()
-            # Accede al primer elemento de la lista y luego a la clave 'generated_text'
-            if answer and 'generated_text' in answer[0]:
-                generated_text = answer[0]['generated_text']
-                return jsonify({'response': generated_text})
-            else:
-                return jsonify({'response': 'Respuesta no disponible'})
-        else:
-            return jsonify({'error': 'Error al procesar la respuesta del modelo', 'status_code': response.status_code})
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({'error': str(e)})
+    # Extraer y devolver la respuesta generada
+    answer = response[0]['generated_text'][len(context):]  # Ajusta según sea necesario para limpiar la salida
+    return jsonify({'response': answer})
 
 
 if __name__ == '__main__':
     app.run(debug=True)
+
