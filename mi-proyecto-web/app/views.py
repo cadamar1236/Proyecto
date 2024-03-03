@@ -10,7 +10,9 @@ from transformers import pipeline
 from datetime import datetime
 import requests
 import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
-
+from dotenv import load_dotenv
+load_dotenv()
+token = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
 @app.route('/')
 def index():
     return render_template('base.html', now=datetime.now())
@@ -92,9 +94,7 @@ def chat_interface(transcription_filename):
     return render_template('chat.html', transcription_files=transcription_files, transcription_text=transcription_text)
 
 # Configuración del Modelo Llama 2
-MODEL_NAME = "meta-llama/Llama-2-7b-chat-hf"
-pipeline = pipeline("text-generation", model=MODEL_NAME, device=0)  # Asume que estás utilizando una GPU
-
+pipeline = pipeline("text-generation", model="meta-llama/Llama-2-7b-chat-hf", token= token, device=0)
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
