@@ -11,6 +11,10 @@ from datetime import datetime
 import requests
 import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
 from dotenv import load_dotenv
+ # Asegúrate de haber instalado langchain
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain.prompts import PromptTemplate
+
 load_dotenv()
 token = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
 @app.route('/')
@@ -63,18 +67,30 @@ def transcribe_youtube():
             flash(f'Ocurrió un error inesperado: {e}', 'error')
     return render_template('transcription.html', form=form)
 
+
 @app.route('/upload_pdf', methods=['GET', 'POST'])
 def upload_pdf():
     form = PDFUploadForm()
     if form.validate_on_submit():
         pdf_file = form.pdf.data
         filename = secure_filename(pdf_file.filename)
-        unique_filename = f"{uuid.uuid4()}_{filename}"  # MODIFICADO: Asegúrate de que esta línea se corresponde con tu implementación
-        pdf_path = os.path.join('path/to/uploaded_pdfs', unique_filename)
+        pdf_path = os.path.join('uploads', filename)
         pdf_file.save(pdf_path)
-        text = extract_text_from_pdf(pdf_path)  # MODIFICADO: Asegúrate de implementar esta función
-        return redirect(url_for('chat', context=text))
+
+        context = extract_text_from_pdf(pdf_path)
+        return redirect(url_for('chat_with_pdf_context', context=context))
     return render_template('upload_pdf.html', form=form)
+
+@app.route('/chat_with_pdf_context', methods=['GET', 'POST'])
+def chat_with_pdf_context():
+    context = request.args.get('context', '')
+
+    if request.method == 'POST':
+        question = request.form['message']
+        response = chat_with_llama(context, question)
+        return render_template('chat.html', context=context, response=response)
+
+    return render_template('chat.html', context=context)
 
 @app.route('/chat_interface', defaults={'transcription_filename': None})
 @app.route('/chat_interface/<transcription_filename>')
@@ -93,6 +109,23 @@ def chat_interface(transcription_filename):
     
     return render_template('chat.html', transcription_files=transcription_files, transcription_text=transcription_text)
 
+# Configuración de HuggingFacePipeline para el modelo LLaMA
+llm = HuggingFacePipeline.from_model_id(
+    model_id="meta-llama/Llama-2-70b-chat-hf",
+    task="text-generation",
+    pipeline_kwargs={"max_new_tokens": 10},
+    use_auth_token= token
+)
+
+# Crear cadena con el modelo y un template de prompt
+template = """Question: {question}  Answer: Let's think step by step."""
+prompt = PromptTemplate.from_template(template)
+chat_chain = prompt | llm
+
+def chat_with_llama(context, question):
+    # Generar la respuesta usando la cadena de LangChain
+    response = chat_chain.invoke({"question": f"{context}\n\n{question}"})
+    return response.strip().split('\n')[-1]  # Retorna solo la respuesta final
 # Configuración del Modelo Llama 2
 pipeline = pipeline("text-generation", model="meta-llama/Llama-2-7b-chat-hf", token= token, device=0)
 @app.route('/chat', methods=['POST'])
@@ -111,12 +144,12 @@ def chat():
     except FileNotFoundError:
         return jsonify({'error': 'Archivo de transcripción no encontrado'}), 404
 
-    # Generar respuesta utilizando el pipeline y el contexto de la transcripción
-    response = pipeline(f"{context}\n\n{question}", max_length=512, clean_up_tokenization_spaces=True)
+    # Usar LangChain para generar la respuesta usando LLaMA y el contexto
+    response = chat_with_llama(context, question)
 
-    # Extraer y devolver la respuesta generada
-    answer = response[0]['generated_text'][len(context):]  # Ajusta según sea necesario para limpiar la salida
-    return jsonify({'response': answer})
+    # Devolver la respuesta generada
+    return jsonify({'response': response})
+
 
 
 if __name__ == '__main__':
