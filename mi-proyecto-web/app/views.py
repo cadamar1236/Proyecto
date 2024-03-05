@@ -3,6 +3,7 @@ from .forms import AudioUploadForm, YouTubeForm, PDFUploadForm  # Asegúrate de 
 from werkzeug.utils import secure_filename  # Importación para manejar nombres de archivo seguros
 from .util import whisper_util
 import os
+from chatbot import chat_with_pdf 
 from app import app
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 import torch
@@ -12,8 +13,14 @@ import requests
 import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
 from dotenv import load_dotenv
  # Asegúrate de haber instalado langchain
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
-from langchain.prompts import PromptTemplate
+from langchain.llms import HuggingFaceHub
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.document_loaders import TextLoader  # Asume que has creado o adaptado una clase para cargar texto
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.vectorstores import Chroma
+from langchain.retrievers import BaseRetriever
+from langchain.chains import ConversationalRetrievalChain
+
 
 load_dotenv()
 token = os.getenv("YOUR_HUGGING_FACE_API_TOKEN")
@@ -77,20 +84,23 @@ def upload_pdf():
         pdf_path = os.path.join('uploads', filename)
         pdf_file.save(pdf_path)
 
-        context = extract_text_from_pdf(pdf_path)
-        return redirect(url_for('chat_with_pdf_context', context=context))
+        # Aquí simplemente redirigimos al usuario a la ruta de chat con el nombre del archivo como argumento
+        return redirect(url_for('chat_with_pdf_context', pdf_path=filename))
     return render_template('upload_pdf.html', form=form)
 
 @app.route('/chat_with_pdf_context', methods=['GET', 'POST'])
 def chat_with_pdf_context():
-    context = request.args.get('context', '')
+    pdf_path = request.args.get('pdf_path', '')
 
     if request.method == 'POST':
         question = request.form['message']
-        response = chat_with_llama(context, question)
-        return render_template('chat.html', context=context, response=response)
+        # Asegúrate de construir el camino completo al archivo PDF aquí
+        full_pdf_path = os.path.join('uploads', pdf_path)
+        response = chat_with_pdf(full_pdf_path, question)
+        return render_template('chat.html', pdf_path=pdf_path, response=response)
 
-    return render_template('chat.html', context=context)
+    # Si es una solicitud GET, simplemente mostramos la interfaz de chat sin respuesta
+    return render_template('chat.html', pdf_path=pdf_path)
 
 @app.route('/chat_interface', defaults={'transcription_filename': None})
 @app.route('/chat_interface/<transcription_filename>')
@@ -109,48 +119,51 @@ def chat_interface(transcription_filename):
     
     return render_template('chat.html', transcription_files=transcription_files, transcription_text=transcription_text)
 
-# Configuración de HuggingFacePipeline para el modelo LLaMA
-llm = HuggingFacePipeline.from_model_id(
-    model_id="meta-llama/Llama-2-70b-chat-hf",
-    task="text-generation",
-    pipeline_kwargs={"max_new_tokens": 10},
-    use_auth_token= token
-)
 
-# Crear cadena con el modelo y un template de prompt
-template = """Question: {question}  Answer: Let's think step by step."""
-prompt = PromptTemplate.from_template(template)
-chat_chain = prompt | llm
-
-def chat_with_llama(context, question):
-    # Generar la respuesta usando la cadena de LangChain
-    response = chat_chain.invoke({"question": f"{context}\n\n{question}"})
-    return response.strip().split('\n')[-1]  # Retorna solo la respuesta final
-# Configuración del Modelo Llama 2
-pipeline = pipeline("text-generation", model="meta-llama/Llama-2-7b-chat-hf", token= token, device=0)
+# Asegúrate de haber configurado la autenticación con Hugging Face
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
-    question = data.get('message')
+    question = data.get('question')
     transcription_filename = data.get('transcription_filename')
 
     if not question or not transcription_filename:
-        return jsonify({'error': 'Falta información de entrada o nombre de archivo de transcripción'}), 400
+        return jsonify({'error': 'Missing input information or transcription filename'}), 400
 
     transcription_path = os.path.join('transcriptions', transcription_filename)
     try:
         with open(transcription_path, 'r') as file:
-            context = file.read()
+            transcription_text = file.read()
     except FileNotFoundError:
-        return jsonify({'error': 'Archivo de transcripción no encontrado'}), 404
+        return jsonify({'error': 'Transcription file not found'}), 404
 
-    # Usar LangChain para generar la respuesta usando LLaMA y el contexto
-    response = chat_with_llama(context, question)
+    # Inicializar historial de chat
+    chat_history = []
+    
+    # Dividir texto
+    text_splitter = CharacterTextSplitter(chunk_size=1000)
+    texts = text_splitter.split_text(transcription_text)
 
-    # Devolver la respuesta generada
-    return jsonify({'response': response})
+    # Obtener embeddings
+    embeddings = HuggingFaceEmbeddings()
 
+    # Indexar en Chroma
+    db = Chroma.from_documents(texts, embeddings)
+    retriever = db.as_retriever(k=2)
 
+    # Usar ChatGroq
+    chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
+
+    # Crear cadena conversacional 
+    qa_chain = ConversationalRetrievalChain.from_llm(chat, retriever, return_source_documents=True)
+
+    # Realizar QA
+    result = qa_chain({"question": question, "chat_history": chat_history})
+    
+    # Agregar al historial
+    chat_history.append((question, result['answer']))
+
+    return jsonify({'response': result['answer']})
 
 if __name__ == '__main__':
     app.run(debug=True)
