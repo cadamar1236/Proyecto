@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from .forms import AudioUploadForm, YouTubeForm, PDFUploadForm  # Asegúrate de incluir PDFUploadForm
 from werkzeug.utils import secure_filename  # Importación para manejar nombres de archivo seguros
 from .util import whisper_util
 import os
 from chatbot import chat_with_pdf 
 from app import app
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 import torch
 from transformers import pipeline 
@@ -88,6 +90,33 @@ def upload_pdf():
         return redirect(url_for('chat_with_pdf_context', pdf_path=filename))
     return render_template('upload_pdf.html', form=form)
 
+import fitz  # Asegúrate de haber instalado PyMuPDF
+
+@app.route('/upload_pdf', methods=['GET', 'POST'])
+def upload_pdf1():
+    form = PDFUploadForm()
+    if form.validate_on_submit():
+        pdf_file = form.pdf.data
+        filename = secure_filename(pdf_file.filename)
+        pdf_path = os.path.join('uploads', filename)
+        pdf_file.save(pdf_path)
+
+        # Leer el contenido del PDF subido
+        pdf_content = read_pdf_content(pdf_path)
+
+        # Redirige con el contenido del PDF a la siguiente etapa
+        session['pdf_content'] = pdf_content  # Almacenamos el contenido en la sesión
+        return redirect(url_for('generate_test_route'))
+    return render_template('upload_pdf.html', form=form)
+
+def read_pdf_content(pdf_path):
+    doc = fitz.open(pdf_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
+
+
 @app.route('/chat_with_pdf_context', methods=['GET', 'POST'])
 def chat_with_pdf_context():
     pdf_path = request.args.get('pdf_path', '')
@@ -165,6 +194,114 @@ def chat():
 
     return jsonify({'response': result['answer']})
 
+
+from langchain.prompts import PromptTemplate
+
+@app.route('/generate_test')
+def generate_test(pdf_content, num_questions):
+
+    chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
+
+    system = """Eres un asistente que genera preguntas de opción múltiple. Debes proporcionar 3 preguntas sobre el texto dado, con 4 opciones de respuesta cada una. Usa el siguiente formato: 
+
+    Pregunta 1: ¿Cuál es la capital de Francia?
+    - París  
+    - Londres
+    - Berlín
+    - Madrid"""  
+
+    human = f"""Contenido del PDF:
+    {pdf_content}"""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system), 
+        ("human", human)
+    ])
+    input = {"pdf_content": pdf_content}
+
+    response = prompt | chat
+    response_msg = response.invoke(input)
+    response_text = response_msg.content
+
+    # Extraer preguntas
+    questions = []
+    for qa in response_text.split("\n\n"):
+        lines = qa.split("\n")
+        question = lines[0]
+        choices = lines[1:]
+
+        questions.append({
+            "question": question,
+            "choices": choices  
+        })
+
+    return questions
+
+@app.route('/generate_test_route')
+def generate_test_route():
+    pdf_content = session.get('pdf_content', '')
+    if not pdf_content:
+        flash('No hay contenido de PDF disponible para generar el test.', 'error')
+        return redirect(url_for('index'))
+
+    num_questions = 5  # Definir el número de preguntas que quieres generar
+    
+    questions = generate_test(pdf_content, num_questions)
+    session['questions'] = questions  # Almacenamos las preguntas en la sesión
+    
+    return redirect(url_for('take_test'))
+
+def check_answer(question, user_answer, chat):
+    chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
+    system = """Eres un asistente que evalúa respuestas de opción múltiple. Dada la pregunta, la respuesta del usuario y las opciones, determina si la respuesta del usuario es correcta.Responde con si o no"""
+
+    options = "".join("- " + choice + "\n" for choice in question["choices"])
+
+    human = f"""Pregunta: {question["question"]}  
+    Respuesta del usuario: {user_answer}
+    Opciones:
+    {options}"""
+
+    prompt = ChatPromptTemplate.from_messages(
+        [("system", system), ("human", human)]
+    )
+
+    response = prompt | chat
+    print(response)
+    print(response.invoke({}).content)
+    is_correct = response.invoke({}).content.lower().startswith("sí")
+    print(is_correct)
+    if is_correct:
+        return "correct"
+    else: 
+        return "incorrect"
+
+
+
+@app.route('/take_test', methods=['GET', 'POST'])
+def ask_questions():
+    if request.method == 'POST':
+        # Esta parte maneja las respuestas enviadas por el usuario
+        questions = session.get('questions', [])
+        score = 0
+        total_questions = len(questions)
+        for question in questions:
+            user_answer = request.form.get(question["question"])
+            correctness = check_answer(question, user_answer)
+            if correctness == "correct":
+                score += 1
+        
+        flash(f'Tu puntuación es {score}/{total_questions}', 'info')
+        return redirect(url_for('index'))  # Redireccionar al inicio o a una página de resultados
+    else:
+        # Mostrar las preguntas si es una solicitud GET
+        questions = session.get('questions', [])
+        if not questions:
+            # Redirigir al usuario si no hay preguntas en la sesión
+            flash('No hay test disponible para realizar.', 'warning')
+            return redirect(url_for('index'))
+        return render_template('take_test.html', questions=questions)
+    
 if __name__ == '__main__':
     app.run(debug=True)
 

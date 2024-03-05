@@ -35,4 +35,3 @@ def chat_with_pdf(pdf_path, query):
     # Preguntar al chatbot
     result = qa_chain({"question": query, "chat_history": []})
     return result["answer"]
-
