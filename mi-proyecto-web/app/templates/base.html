@@ -6,7 +6,17 @@
     <title>{% block title %}Mi Página Web{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        header, footer { background-color: #ddd; padding: 10px; text-align: center; }
+        nav ul { list-style-type: none; padding: 0; }
+        nav ul li { display: inline; margin-right: 10px; }
+        nav ul li a { text-decoration: none; }
+        #flash-messages { margin-bottom: 20px; }
+        .flash.success { color: green; }
+        .flash.error { color: red; }
+        input[type="text"], input[type="file"], select, button { padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .submit-btn { background-color: #007bff; color: white; border: none; cursor: pointer; }
+        .submit-btn:hover { background-color: #0056b3; }
         #chatbot-container {
             position: fixed;
             bottom: 20px;
@@ -25,21 +35,10 @@
             padding: 5px;
             margin-bottom: 10px;
         }
-        .flash.success { color: green; }
-        .flash.error { color: red; }
-        #chat-input {
-            width: calc(100% - 20px);
-            padding: 5px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
         .chat-container { display: flex; flex-direction: column; margin-bottom: 20px; }
         .user-message, .bot-response { margin: 5px 0; }
         .user-message { align-self: flex-end; }
         .bot-response { align-self: flex-start; }
-        input[type="text"], select { width: calc(100% - 20px); padding: 10px; margin-bottom: 10px; }
-        button { padding: 10px 20px; }
     </style>
 </head>
 <body>
@@ -50,6 +49,10 @@
                 <li><a href="{{ url_for('transcribe_youtube') }}">Transcribir YouTube</a></li>
                 <li><a href="{{ url_for('upload_audio') }}">Cargar Audio</a></li>
                 <li><a href="{{ url_for('chat_interface') }}">Chat con Transcripciones</a></li>
+                <!-- Nuevos enlaces añadidos -->
+                <li><a href="{{ url_for('upload_pdf') }}">Cargar PDF</a></li>
+                <li><a href="{{ url_for('select_pdf') }}">Seleccionar PDF</a></li>
+                <li><a href="{{ url_for('take_test') }}">Realizar Test</a></li>
             </ul>
         </nav>
     </header>
@@ -76,7 +79,6 @@
         <h4>Chatbot Mistral AI</h4>
         <select id="transcription-select">
             <!-- Las opciones de transcripción se deben cargar aquí -->
-            <!-- Esto se reemplazará dinámicamente basado en la implementación del servidor -->
         </select>
         <div id="chat-messages"></div>
         <input type="text" id="chat-input" placeholder="Escribe tu pregunta aquí...">
@@ -87,9 +89,9 @@
         function sendMessage() {
             var userInput = document.getElementById('chat-input').value;
             var transcriptionSelected = document.getElementById('transcription-select').value;
-            console.log("Enviando mensaje:", userInput); // Para depuración
-            console.log("Transcripción seleccionada:", transcriptionSelected); // Para depuración
-    
+            console.log("Enviando mensaje:", userInput);
+            console.log("Transcripción seleccionada:", transcriptionSelected);
+
             fetch('/chat', {
                 method: 'POST',
                 headers: {
@@ -117,11 +119,10 @@
             .catch((error) => {
                 console.error('Error:', error);
             });
-    
+
             document.getElementById('chat-input').value = ''; // Limpia el campo de entrada después de enviar
         }
     </script>
-    
 </body>
 </html>
 

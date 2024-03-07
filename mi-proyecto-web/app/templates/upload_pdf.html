@@ -1,16 +1,12 @@
-<!-- templates/upload_pdf.html -->
 {% extends "base.html" %}
 
+{% block title %}Cargar PDF{% endblock %}
+
 {% block content %}
-<h2>Subir PDF para Análisis</h2>
-<form method="POST" enctype="multipart/form-data">
-    {{ form.hidden_tag() }}
-    <div>
-        {{ form.pdf.label }}
-        {{ form.pdf() }}
-    </div>
-    <div>
-        {{ form.submit() }}
-    </div>
+<h1>Cargar PDF para Generar Test</h1>
+<form action="/upload_pdf" method="post" enctype="multipart/form-data">
+    <label for="pdf">Selecciona un archivo PDF:</label>
+    <input type="file" id="pdf" name="pdf" accept=".pdf" required>
+    <input type="submit" value="Cargar PDF">
 </form>
 {% endblock %}

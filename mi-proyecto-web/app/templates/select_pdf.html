@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Seleccionar PDF{% endblock %}
+
+{% block content %}
+<h1>Selecciona un PDF para generar el test</h1>
+{% if pdf_files %}
+    <ul>
+        {% for pdf in pdf_files %}
+            <li><a href="/generate_test_route?pdf_path={{ pdf }}">{{ pdf }}</a></li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No hay archivos PDF cargados.</p>
+{% endif %}
+{% endblock %}

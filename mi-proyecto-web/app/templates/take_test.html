@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Tomar Test{% endblock %}
+
+{% block content %}
+<h1>Test</h1>
+<form action="/submit_test" method="post">
+    {% for question in questions %}
+        <div class="question">
+            <p>{{ loop.index }}. {{ question.question }}</p>
+            {% for choice in question.choices %}
+                <div class="choice">
+                    <input type="radio" id="choice{{ loop.parentloop.index }}{{ loop.index }}" name="question{{ loop.parentloop.index }}" value="{{ choice }}">
+                    <label for="choice{{ loop.parentloop.index }}{{ loop.index }}">{{ choice }}</label>
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+    <input type="submit" value="Enviar respuestas" class="submit-btn">
+</form>
+{% endblock %}

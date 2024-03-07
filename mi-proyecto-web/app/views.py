@@ -109,6 +109,13 @@ def upload_pdf1():
         return redirect(url_for('generate_test_route'))
     return render_template('upload_pdf.html', form=form)
 
+@app.route('/select_pdf')
+def select_pdf():
+    pdfs_dir = os.path.join(app.root_path, 'uploads')
+    pdf_files = [f for f in os.listdir(pdfs_dir) if f.endswith('.pdf')]
+    
+    return render_template('select_pdf.html', pdf_files=pdf_files)
+
 def read_pdf_content(pdf_path):
     doc = fitz.open(pdf_path)
     text = ""
