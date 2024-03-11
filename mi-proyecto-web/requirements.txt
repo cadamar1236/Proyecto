@@ -4,3 +4,8 @@ wtforms
 email-validator
 pytube
 transformers
+werkzeug
+requests
+python-dotenv
+PyMuPDF
+torch
