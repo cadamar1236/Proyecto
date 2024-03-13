@@ -4,7 +4,6 @@ from werkzeug.utils import secure_filename  # Importación para manejar nombres 
 from .util import whisper_util
 import os
 from .util  import chatbot
-from chatbot import chat_with_pdf
 from app import app
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
