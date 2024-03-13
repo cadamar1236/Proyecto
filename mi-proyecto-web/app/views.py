@@ -15,12 +15,12 @@ import requests
 import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
 from dotenv import load_dotenv
  # Asegúrate de haber instalado langchain
-from langchain.llms import HuggingFaceHub
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.document_loaders import TextLoader  # Asume que has creado o adaptado una clase para cargar texto
+from langchain_community.llms import HuggingFaceHub
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.document_loaders import PyPDFLoader # Asume que has creado o adaptado una clase para cargar texto
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain.retrievers import BaseRetriever
+from langchain_community.vectorstores import Chroma
+from langchain_community.retrievers import BaseRetriever
 from langchain.chains import ConversationalRetrievalChain
 
 
