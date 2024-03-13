@@ -1,81 +1,102 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es"> <!-- Cambio a español -->
 <head>
     <meta charset="UTF-8">
     <title>Chatbot con Mistral AI</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .chat-container { display: flex; flex-direction: column; margin-bottom: 20px; }
-        .user-message, .bot-response, .error-message { margin: 5px 0; }
-        .user-message { align-self: flex-end; }
-        .bot-response { align-self: flex-start; color: blue; }
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        .chat-container { display: flex; flex-direction: column-reverse; margin-bottom: 20px; background-color: white; border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: auto; }
+        .user-message, .bot-response, .error-message { margin: 5px 0; padding: 10px; border-radius: 5px; }
+        .user-message { background-color: #007bff; color: white; align-self: flex-end; }
+        .bot-response { background-color: #eeeeee; align-self: flex-start; color: #333; }
         .error-message { color: red; }
-        input[type="text"], select { width: 300px; padding: 10px; margin-right: 10px; }
-        input[type="button"] { padding: 10px 20px; cursor: pointer; }
+        input[type="text"], select { width: calc(100% - 22px); padding: 10px; border: 1px solid #ccc; margin-bottom: 10px; border-radius: 4px; }
+        button { padding: 10px 20px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background-color: #0056b3; }
     </style>
 </head>
 <body>
-    <h2>Chat con Llama</h2>
+    <h2>Chat con Mistral</h2>
     <select id="transcription-select">
+        <option value="">Selecciona una transcripción</option> <!-- Opción por defecto -->
         {% for transcription_file in transcription_files %}
             <option value="{{ transcription_file }}">{{ transcription_file }}</option>
         {% endfor %}
     </select>
-    <div id="chat-container" class="chat-container"></div>
-    <input type="text" id="user-input" placeholder="Escribe tu pregunta aquí...">
-    <input type="button" value="Enviar" onclick="sendMessage()">
+    <div id="chat-container" class="chat-container">
+        <!-- Los mensajes se añadirán aquí -->
+    </div>
+    <input type="text" id="user-input" placeholder="Escribe tu pregunta aquí..." onkeypress="handleKeyPress(event)">
+    <button onclick="sendMessage()">Enviar</button>
 
     <script>
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
         function sendMessage() {
-            var userInput = document.getElementById('user-input').value;
+            var userInput = document.getElementById('user-input').value.trim();
             var transcriptionSelected = document.getElementById('transcription-select').value;
+            if (!userInput) {
+                alert('Por favor, escribe un mensaje antes de enviar.');
+                return;
+            }
+            if (!transcriptionSelected) {
+                alert('Por favor, selecciona una transcripción.');
+                return;
+            }
+
+            displayUserMessage(userInput);
+            postMessageToServer(userInput, transcriptionSelected);
+        }
+
+        function displayUserMessage(message) {
             var chatContainer = document.getElementById('chat-container');
             var userMessageDiv = document.createElement('div');
-            userMessageDiv.textContent = "Tú: " + userInput;
+            userMessageDiv.textContent = "Tú: " + message;
             userMessageDiv.className = 'user-message';
-            chatContainer.appendChild(userMessageDiv);
+            chatContainer.insertBefore(userMessageDiv, chatContainer.firstChild);
+            document.getElementById('user-input').value = ''; // Limpia el campo de entrada después de enviar
+        }
 
+        function displayServerMessage(message, isError) {
+            var chatContainer = document.getElementById('chat-container');
+            var serverMessageDiv = document.createElement('div');
+            serverMessageDiv.textContent = isError ? "Error: " + message : "Chatbot: " + message;
+            serverMessageDiv.className = isError ? 'error-message' : 'bot-response';
+            chatContainer.insertBefore(serverMessageDiv, chatContainer.firstChild);
+        }
+
+        function postMessageToServer(userInput, transcriptionSelected) {
             fetch('/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    message: userInput,
+                    question: userInput,
                     transcription_filename: transcriptionSelected
                 }),
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    throw new Error('La respuesta de la red no fue exitosa');
                 }
                 return response.json();
             })
             .then(data => {
-                console.log("Respuesta del servidor:", data); // Añadido para depuración
-                var botResponseDiv = document.createElement('div');
-                if (data.error) {
-                    botResponseDiv.textContent = "Error: " + data.error;
-                    botResponseDiv.className = 'error-message';
-                } else {
-                    botResponseDiv.textContent = "Chatbot: " + (data.response || "No hubo respuesta del chatbot.");
-                    botResponseDiv.className = 'bot-response';
-                }
-                chatContainer.appendChild(botResponseDiv);
+                displayServerMessage(data.response || "No hubo respuesta del chatbot.", !!data.error);
             })
             .catch((error) => {
-                console.error('Error durante el envío del mensaje:', error);
-                var errorMessageDiv = document.createElement('div');
-                errorMessageDiv.textContent = "Error al comunicarse con el chatbot: " + error.message;
-                errorMessageDiv.className = 'error-message';
-                chatContainer.appendChild(errorMessageDiv);
+                displayServerMessage(error.message, true);
             });
-
-            document.getElementById('user-input').value = ''; // Limpia el campo de entrada después de enviar
         }
     </script>
 </body>
 </html>
+
 
 
 

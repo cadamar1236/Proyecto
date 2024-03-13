@@ -20,7 +20,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader # Asume que has creado o adaptado una clase para cargar texto
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_community.retrievers import BaseRetriever
 from langchain.chains import ConversationalRetrievalChain
 
 
@@ -138,68 +137,59 @@ def chat_with_pdf_context():
     # Si es una solicitud GET, simplemente mostramos la interfaz de chat sin respuesta
     return render_template('chat.html', pdf_path=pdf_path)
 
-@app.route('/chat_interface', defaults={'transcription_filename': None})
-@app.route('/chat_interface/<transcription_filename>')
+@app.route('/chat_interface', defaults={'transcription_filename': None}, methods=['GET', 'POST'])
+@app.route('/chat_interface/<transcription_filename>', methods=['GET', 'POST'])
 def chat_interface(transcription_filename):
     transcriptions_dir = os.path.join(app.root_path, 'transcriptions')
     transcription_files = [f for f in os.listdir(transcriptions_dir) if os.path.isfile(os.path.join(transcriptions_dir, f))]
     
-    transcription_text = None
-    if transcription_filename:
+    if request.method == 'POST':
+        data = request.json
+        question = data.get('question')
+
+        if not question or not transcription_filename:
+            return jsonify({'error': 'Falta información de entrada o nombre de archivo de transcripción'}), 400
+
         transcription_path = os.path.join(transcriptions_dir, transcription_filename)
-        if os.path.exists(transcription_path):
+        try:
             with open(transcription_path, 'r') as file:
                 transcription_text = file.read()
-        else:
-            flash('Transcripción no encontrada.', 'error')
-    
-    return render_template('chat.html', transcription_files=transcription_files, transcription_text=transcription_text)
+        except FileNotFoundError:
+            return jsonify({'error': 'Archivo de transcripción no encontrado'}), 404
 
+        # Aquí se asume que el resto de tu lógica de chat está correcta y funciona como se espera
+        # Inicializar historial de chat
+        chat_history = session.get('chat_history', [])
 
-# Asegúrate de haber configurado la autenticación con Hugging Face
-@app.route('/chat', methods=['POST'])
-def chat():
-    data = request.json
-    question = data.get('question')
-    transcription_filename = data.get('transcription_filename')
+        # Proceso de chat (dividir texto, obtener embeddings, indexar en Chroma, usar ChatGroq, crear cadena conversacional y realizar QA)
+        # Dividir texto
+        text_splitter = CharacterTextSplitter(chunk_size=1000)
+        texts = text_splitter.split_text(transcription_text)
 
-    if not question or not transcription_filename:
-        return jsonify({'error': 'Missing input information or transcription filename'}), 400
+        # Obtener embeddings
+        embeddings = HuggingFaceEmbeddings()
 
-    transcription_path = os.path.join('transcriptions', transcription_filename)
-    try:
-        with open(transcription_path, 'r') as file:
-            transcription_text = file.read()
-    except FileNotFoundError:
-        return jsonify({'error': 'Transcription file not found'}), 404
+        # Indexar en Chroma
+        db = Chroma.from_documents(texts, embeddings)
+        retriever = db.as_retriever(k=2)
 
-    # Inicializar historial de chat
-    chat_history = []
-    
-    # Dividir texto
-    text_splitter = CharacterTextSplitter(chunk_size=1000)
-    texts = text_splitter.split_text(transcription_text)
+        # Usar ChatGroq
+        chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
 
-    # Obtener embeddings
-    embeddings = HuggingFaceEmbeddings()
+        # Crear cadena conversacional 
+        qa_chain = ConversationalRetrievalChain.from_llm(chat, retriever, return_source_documents=True)
 
-    # Indexar en Chroma
-    db = Chroma.from_documents(texts, embeddings)
-    retriever = db.as_retriever(k=2)
+        # Realizar QA
+        result = qa_chain({"question": question, "chat_history": chat_history})
+        
+        # Agregar al historial y guardar en la sesión
+        chat_history.append((question, result['answer']))
+        session['chat_history'] = chat_history
 
-    # Usar ChatGroq
-    chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
+        return jsonify({'response': result['answer']})
 
-    # Crear cadena conversacional 
-    qa_chain = ConversationalRetrievalChain.from_llm(chat, retriever, return_source_documents=True)
-
-    # Realizar QA
-    result = qa_chain({"question": question, "chat_history": chat_history})
-    
-    # Agregar al historial
-    chat_history.append((question, result['answer']))
-
-    return jsonify({'response': result['answer']})
+    # La sección GET simplemente renderiza la plantilla con los archivos de transcripción
+    return render_template('chat.html', transcription_files=transcription_files, transcription_filename=transcription_filename)
 
 
 from langchain.prompts import PromptTemplate

@@ -52,7 +52,7 @@
                 <!-- Nuevos enlaces añadidos -->
                 <li><a href="{{ url_for('upload_pdf') }}">Cargar PDF</a></li>
                 <li><a href="{{ url_for('select_pdf') }}">Seleccionar PDF</a></li>
-                <li><a href="{{ url_for('take_test') }}">Realizar Test</a></li>
+                <li><a href="{{ url_for('generate_test') }}">Realizar Test</a></li>
             </ul>
         </nav>
     </header>
@@ -78,7 +78,8 @@
     <div id="chatbot-container">
         <h4>Chatbot Mistral AI</h4>
         <select id="transcription-select">
-            <!-- Las opciones de transcripción se deben cargar aquí -->
+            <!-- Las opciones de transcripción se cargan aquí -->
+            <!-- ... -->
         </select>
         <div id="chat-messages"></div>
         <input type="text" id="chat-input" placeholder="Escribe tu pregunta aquí...">
@@ -89,43 +90,43 @@
         function sendMessage() {
             var userInput = document.getElementById('chat-input').value;
             var transcriptionSelected = document.getElementById('transcription-select').value;
-            console.log("Enviando mensaje:", userInput);
-            console.log("Transcripción seleccionada:", transcriptionSelected);
-
-            fetch('/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: userInput,
-                    transcription_filename: transcriptionSelected
-                }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                var botResponseDiv = document.createElement('div');
-                if (data.error) {
-                    botResponseDiv.textContent = "Error: " + data.error;
-                    botResponseDiv.className = 'error-message';
-                } else {
-                    botResponseDiv.textContent = "Chatbot: " + data.response;
+            if (userInput && transcriptionSelected) { // Asegúrese de que el usuario haya ingresado texto y seleccionado una transcripción
+                fetch('/chat_interface/' + encodeURIComponent(transcriptionSelected), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question: userInput })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('La respuesta de la red no fue exitosa');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    var chatMessages = document.getElementById('chat-messages');
+                    var botResponseDiv = document.createElement('div');
                     botResponseDiv.className = 'bot-response';
-                }
-                var chatContainer = document.getElementById('chat-messages');
-                chatContainer.appendChild(botResponseDiv);
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-            });
-
+                    if (data.error) {
+                        botResponseDiv.textContent = "Error: " + data.error;
+                    } else {
+                        botResponseDiv.textContent = "Chatbot: " + data.response;
+                    }
+                    chatMessages.appendChild(botResponseDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+            } else {
+                alert('Por favor, escribe tu mensaje y selecciona una transcripción.');
+            }
             document.getElementById('chat-input').value = ''; // Limpia el campo de entrada después de enviar
         }
     </script>
 </body>
 </html>
-
 
 
 
