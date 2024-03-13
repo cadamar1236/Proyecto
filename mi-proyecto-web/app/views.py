@@ -11,7 +11,9 @@ from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 import torch
 from transformers import pipeline 
 from datetime import datetime
+from langchain_community.docstore.document import Document
 import requests
+import logging
 import uuid  # MODIFICADO: Asegúrate de importar uuid si vas a usarlo
 from dotenv import load_dotenv
  # Asegúrate de haber instalado langchain
@@ -144,13 +146,23 @@ def chat_interface(transcription_filename):
     transcription_files = [f for f in os.listdir(transcriptions_dir) if os.path.isfile(os.path.join(transcriptions_dir, f))]
     
     if request.method == 'POST':
+        # Aquí es donde comienza a manejar la solicitud POST
+        logging.info("Recibida solicitud POST a /chat_interface.")
+        
         data = request.json
         question = data.get('question')
+        
+        # Agrega logs para ver qué datos se están recibiendo
+        logging.info(f"Datos recibidos: {data}")
+        logging.info(f"Pregunta recibida: {question}")
 
         if not question or not transcription_filename:
+            # Si entra en esta condición, es probablemente la causa del error 400
+            logging.error("Falta información de entrada o nombre de archivo de transcripción.")
             return jsonify({'error': 'Falta información de entrada o nombre de archivo de transcripción'}), 400
 
         transcription_path = os.path.join(transcriptions_dir, transcription_filename)
+        logging.info(f"Ruta del archivo de transcripción a abrir: {transcription_path}")
         try:
             with open(transcription_path, 'r') as file:
                 transcription_text = file.read()
@@ -169,8 +181,11 @@ def chat_interface(transcription_filename):
         # Obtener embeddings
         embeddings = HuggingFaceEmbeddings()
 
+        # Crear objetos Document a partir de los textos
+        documents = [Document(page_content=text) for text in texts]
+
         # Indexar en Chroma
-        db = Chroma.from_documents(texts, embeddings)
+        db = Chroma.from_documents(documents, embeddings)
         retriever = db.as_retriever(k=2)
 
         # Usar ChatGroq
@@ -181,7 +196,7 @@ def chat_interface(transcription_filename):
 
         # Realizar QA
         result = qa_chain({"question": question, "chat_history": chat_history})
-        
+        logging.info(f"Respuesta del chat: {result['answer']}")
         # Agregar al historial y guardar en la sesión
         chat_history.append((question, result['answer']))
         session['chat_history'] = chat_history

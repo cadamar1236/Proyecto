@@ -70,14 +70,15 @@
         }
 
         function postMessageToServer(userInput, transcriptionSelected) {
-            fetch('/chat_interface', {
+            // Asegúrate de que la URL refleje el endpoint correcto esperado por el backend
+            var postUrl = `/chat_interface/${transcriptionSelected}`;
+            fetch(postUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    question: userInput,
-                    transcription_filename: transcriptionSelected
+                    question: userInput
                 }),
             })
             .then(response => {
