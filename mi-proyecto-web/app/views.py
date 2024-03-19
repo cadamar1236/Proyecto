@@ -1,11 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, current_app as app
 from .forms import AudioUploadForm, YouTubeForm, PDFUploadForm  # Asegúrate de incluir PDFUploadForm
 from werkzeug.utils import secure_filename  # Importación para manejar nombres de archivo seguros
 from .util import whisper_util
 import os
+from .models import Usuario
 from .util  import chatbot
-from app import app
 from langchain_groq import ChatGroq
+from app.extensions import db
 from langchain_core.prompts import ChatPromptTemplate
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 import torch
@@ -23,6 +24,43 @@ from langchain_community.document_loaders import PyPDFLoader # Asume que has cre
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
+from app.forms import LoginForm, RegistroForm
+from app.models import Usuario
+
+@app.route('/registro', methods=['GET', 'POST'])
+def registro():
+    form = RegistroForm()
+    if form.validate_on_submit():
+        user = Usuario(nombre=form.nombre.data, email=form.email.data)
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('¡Registro exitoso!')
+        return redirect(url_for('login'))
+    return render_template('registro.html', title='Registro', form=form)
+
+from flask_login import login_user
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = Usuario.query.filter_by(email=form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            flash('Inicio de sesión exitoso.', 'success')
+            return redirect(url_for('base'))
+        else:
+            flash('Inicio de sesión fallido. Revisa tu correo y contraseña.', 'error')
+    return render_template('login.html', title='Iniciar Sesión', form=form)
+
+from flask_login import logout_user
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    flash('Has cerrado sesión con éxito.', 'info')
+    return redirect(url_for('index'))
 
 
 load_dotenv()
@@ -78,51 +116,71 @@ def transcribe_youtube():
     return render_template('transcription.html', form=form)
 
 
+
+
+import fitz  # Asegúrate de haber instalado PyMuPDF
+
 @app.route('/upload_pdf', methods=['GET', 'POST'])
 def upload_pdf():
     form = PDFUploadForm()
     if form.validate_on_submit():
         pdf_file = form.pdf.data
         filename = secure_filename(pdf_file.filename)
-        pdf_path = os.path.join('uploads', filename)
-        pdf_file.save(pdf_path)
-
-        # Aquí simplemente redirigimos al usuario a la ruta de chat con el nombre del archivo como argumento
-        return redirect(url_for('chat_with_pdf_context', pdf_path=filename))
-    return render_template('upload_pdf.html', form=form)
-
-import fitz  # Asegúrate de haber instalado PyMuPDF
-
-@app.route('/upload_pdf', methods=['GET', 'POST'])
-def upload_pdf1():
-    form = PDFUploadForm()
-    if form.validate_on_submit():
-        pdf_file = form.pdf.data
-        filename = secure_filename(pdf_file.filename)
-        pdf_path = os.path.join('uploads', filename)
+        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         pdf_file.save(pdf_path)
 
         # Leer el contenido del PDF subido
         pdf_content = read_pdf_content(pdf_path)
+        flash('Archivo PDF cargado con éxito.', 'success')
+        
+        # Almacenar el contenido del PDF en la sesión
+        session['pdf_content'] = pdf_content
 
-        # Redirige con el contenido del PDF a la siguiente etapa
-        session['pdf_content'] = pdf_content  # Almacenamos el contenido en la sesión
         return redirect(url_for('generate_test_route'))
     return render_template('upload_pdf.html', form=form)
 
+
 @app.route('/select_pdf')
 def select_pdf():
-    pdfs_dir = os.path.join(app.root_path, 'uploads')
-    pdf_files = [f for f in os.listdir(pdfs_dir) if f.endswith('.pdf')]
+    try:
+        pdfs_dir = os.path.join(app.root_path, app.config['UPLOAD_FOLDER'])
+        if not os.path.exists(pdfs_dir):
+            os.makedirs(pdfs_dir)  # Crea la carpeta si no existe
+        pdf_files = [f for f in os.listdir(pdfs_dir) if f.endswith('.pdf')]
+        
+        if not pdf_files:
+            # Si no hay archivos PDF, envía un mensaje al usuario
+            flash('No se encontraron archivos PDF en la carpeta de subidas.', 'info')
+    except Exception as e:
+        # Captura cualquier excepción y envía un mensaje al usuario
+        flash('Ocurrió un error al intentar listar los archivos PDF.', 'error')
+        logging.error(f'Error al listar archivos PDF en {pdfs_dir}: {e}')
+        pdf_files = []  # Asegúrate de que pdf_files esté definido aunque ocurra un error
     
     return render_template('select_pdf.html', pdf_files=pdf_files)
 
+
 def read_pdf_content(pdf_path):
-    doc = fitz.open(pdf_path)
-    text = ""
-    for page in doc:
-        text += page.get_text()
-    return text
+    try:
+        doc = fitz.open(pdf_path)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        doc.close()  # Es una buena práctica cerrar el documento después de usarlo
+        return text
+    except fitz.fitz.FileNotFoundError:
+        # Manejar específicamente el error cuando el archivo PDF no se encuentra
+        logging.error(f"El archivo PDF en {pdf_path} no fue encontrado.")
+        return None
+    except fitz.fitz.PDFSyntaxError:
+        # Manejar específicamente los errores de sintaxis en el archivo PDF
+        logging.error(f"Error de sintaxis en el archivo PDF en {pdf_path}.")
+        return None
+    except Exception as e:
+        # Capturar cualquier otra excepción que no se haya anticipado
+        logging.error(f"Error al leer el contenido del PDF {pdf_path}: {e}")
+        return None
+
 
 
 @app.route('/chat_with_pdf_context', methods=['GET', 'POST'])
@@ -209,10 +267,16 @@ def chat_interface(transcription_filename):
 
 from langchain.prompts import PromptTemplate
 
-@app.route('/generate_test')
-def generate_test(pdf_content, num_questions):
+@app.route('/generate_test', methods=['GET'])
+def generate_test():
+    pdf_content = session.get('pdf_content')
+    if not pdf_content:
+        flash('No hay contenido de PDF disponible para generar el test.', 'error')
+        return redirect(url_for('index'))
 
-    chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
+    num_questions = request.args.get('num_questions', default=3, type=int)
+
+    chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"), language="es")
 
     system = """Eres un asistente que genera preguntas de opción múltiple. Debes proporcionar 3 preguntas sobre el texto dado, con 4 opciones de respuesta cada una. Usa el siguiente formato: 
 
@@ -247,48 +311,48 @@ def generate_test(pdf_content, num_questions):
             "choices": choices  
         })
 
-    return questions
+    session['questions'] = questions  # Almacena las preguntas en la sesión
+    return redirect(url_for('ask_questions'))
+
 
 @app.route('/generate_test_route')
 def generate_test_route():
-    pdf_content = session.get('pdf_content', '')
+    # Obtener el contenido del PDF desde la sesión
+    pdf_content = session.get('pdf_content')
     if not pdf_content:
         flash('No hay contenido de PDF disponible para generar el test.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('base'))
 
-    num_questions = 5  # Definir el número de preguntas que quieres generar
-    
-    questions = generate_test(pdf_content, num_questions)
-    session['questions'] = questions  # Almacenamos las preguntas en la sesión
-    
-    return redirect(url_for('take_test'))
+    num_questions = 5  # O cualquier otro valor predeterminado que desees
 
-def check_answer(question, user_answer, chat):
+    # Redirigir a la ruta que realmente genera el test
+    return redirect(url_for('generate_test', num_questions=num_questions))
+
+
+def check_answer(question_text, user_answer, options, pdf_content):
     chat = ChatGroq(model_name="mixtral-8x7b-32768", groq_api_key=os.getenv("GROQ_API_KEY"))
-    system = """Eres un asistente que evalúa respuestas de opción múltiple. Dada la pregunta, la respuesta del usuario y las opciones, determina si la respuesta del usuario es correcta.Responde con si o no"""
+    system = """Eres un asistente que evalúa respuestas de opción múltiple. Dada la pregunta, la respuesta del usuario, las opciones y el contenido del PDF, determina si la respuesta del usuario es correcta basándote en la información del PDF. Responde con 'sí' o 'no'."""
 
-    options = "".join("- " + choice + "\n" for choice in question["choices"])
+    human = f"""Contenido del PDF:
+    {pdf_content}
 
-    human = f"""Pregunta: {question["question"]}  
-    Respuesta del usuario: {user_answer}
+    Pregunta: {question_text}
+
     Opciones:
-    {options}"""
+    {[option for option in options]}
+
+    Respuesta del usuario: {user_answer}"""
 
     prompt = ChatPromptTemplate.from_messages(
         [("system", system), ("human", human)]
     )
-
+    print(prompt.format_prompt(question_text=question_text, user_answer=user_answer, options=options, pdf_content=pdf_content))
     response = prompt | chat
-    print(response)
-    print(response.invoke({}).content)
     is_correct = response.invoke({}).content.lower().startswith("sí")
-    print(is_correct)
     if is_correct:
         return "correct"
-    else: 
+    else:
         return "incorrect"
-
-
 
 @app.route('/take_test', methods=['GET', 'POST'])
 def ask_questions():
@@ -297,9 +361,18 @@ def ask_questions():
         questions = session.get('questions', [])
         score = 0
         total_questions = len(questions)
-        for question in questions:
-            user_answer = request.form.get(question["question"])
-            correctness = check_answer(question, user_answer)
+        user_answers = []
+        for i in range(total_questions):
+            user_answer = request.form.get(f"question{i}")
+            user_answers.append(user_answer)
+
+        pdf_content = session.get('pdf_content')  # Obtener el contenido del PDF desde la sesión
+
+        for i, question in enumerate(questions):
+            user_answer = user_answers[i]
+            options = question["choices"]
+            question_text = question["question"]
+            correctness = check_answer(question_text, user_answer, options, pdf_content)
             if correctness == "correct":
                 score += 1
         
@@ -314,6 +387,32 @@ def ask_questions():
             return redirect(url_for('index'))
         return render_template('take_test.html', questions=questions)
     
+@app.route('/submit_test', methods=['POST'])
+def submit_test():
+    questions = session.get('questions', [])
+    score = 0
+    total_questions = len(questions)
+    user_answers = []
+
+    for i in range(total_questions):
+        # Este es el cambio clave: Asegúrate de que se recoge correctamente la respuesta de cada pregunta basada en su índice
+        user_answer = request.form.get(f"question{i}")
+        user_answers.append(user_answer)
+
+    pdf_content = session.get('pdf_content')
+
+    for i, question in enumerate(questions):
+        user_answer = user_answers[i]
+        options = question["choices"]
+        question_text = question["question"]
+        correctness = check_answer(question_text, user_answer, options, pdf_content)
+        if correctness == "correct":
+            score += 1
+
+    flash(f'Tu puntuación es {score}/{total_questions}', 'info')
+    return redirect(url_for('index'))
+
+
 if __name__ == '__main__':
     app.run(debug=True)
 

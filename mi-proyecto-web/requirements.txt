@@ -10,3 +10,5 @@ python-dotenv
 PyMuPDF
 torch
 chromadb
+flask_sqlalchemy
+flask_login

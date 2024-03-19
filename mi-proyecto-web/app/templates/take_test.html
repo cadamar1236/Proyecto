@@ -10,8 +10,10 @@
             <p>{{ loop.index }}. {{ question.question }}</p>
             {% for choice in question.choices %}
                 <div class="choice">
-                    <input type="radio" id="choice{{ loop.parentloop.index }}{{ loop.index }}" name="question{{ loop.parentloop.index }}" value="{{ choice }}">
-                    <label for="choice{{ loop.parentloop.index }}{{ loop.index }}">{{ choice }}</label>
+                    <!-- Asegúrate de que cada input tenga un nombre único basado en el índice de la pregunta -->
+                    <input type="radio" id="question{{ loop.index0 }}choice{{ loop.index0 }}" name="question{{ loop.index }}" value="{{ choice }}">
+                    <label for="question{{ loop.index0 }}choice{{ loop.index0 }}">{{ choice }}</label>
+
                 </div>
             {% endfor %}
         </div>
@@ -19,3 +21,4 @@
     <input type="submit" value="Enviar respuestas" class="submit-btn">
 </form>
 {% endblock %}
+

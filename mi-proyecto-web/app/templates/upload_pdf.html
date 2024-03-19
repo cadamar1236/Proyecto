@@ -5,8 +5,10 @@
 {% block content %}
 <h1>Cargar PDF para Generar Test</h1>
 <form action="/upload_pdf" method="post" enctype="multipart/form-data">
+    {{ form.csrf_token() }}  <!-- Agregar esta línea para incluir el token CSRF -->
     <label for="pdf">Selecciona un archivo PDF:</label>
     <input type="file" id="pdf" name="pdf" accept=".pdf" required>
     <input type="submit" value="Cargar PDF">
 </form>
 {% endblock %}
+

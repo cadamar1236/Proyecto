@@ -7,10 +7,11 @@
 {% if pdf_files %}
     <ul>
         {% for pdf in pdf_files %}
-            <li><a href="/generate_test_route?pdf_path={{ pdf }}">{{ pdf }}</a></li>
+            <li><a href="{{ url_for('generate_test_route', pdf_path=pdf) }}">{{ pdf }}</a></li>
         {% endfor %}
     </ul>
 {% else %}
     <p>No hay archivos PDF cargados.</p>
 {% endif %}
 {% endblock %}
+
